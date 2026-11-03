@@ -1,23 +1,23 @@
 # SPL Hockey Goalie Dataset Documentation
 
-*Last updated: October 2026*
+*Last updated: November 2026*
 
 ## File structure
 
-The shots are in the `data/` folder in the current directory, organized by session date and participant. They are organized as JSON files, with the naming convention `HK_GL_P0001_S000X.json`, where `X` refers to a shot ID. Shot IDs are simply increasing integers from `1` to the number of shots that the participant faced, in chronological order. Each participant ID is a unique and consistent athlete, meaning matching participants across sessions maintain the same ID. Each shot file contains the 3D pose of the goalie and the 3D position and velocity of the puck, synchronized frame by frame.
+The shots are in the `data/` folder in the current directory, organized by session date and goalie. Each goalie has a **participant ID** (e.g. `P0001`), which stays the same across sessions. Shots are stored as JSON files with the naming convention `HK_GL_P0001_S000X.json`, where `P0001` is the participant ID and `X` is the shot ID. Shot IDs are increasing integers from `1` to the number of shots the goalie faced, in chronological order. Each shot file contains the 3D pose of the goalie and the 3D position and velocity of the puck, synchronized frame by frame.
 
 Each JSON file has the following structure:
 
 ```
 {
-  "session_date": "2026-08-06",
-  "participant_id": "P0001",
-  "shot_number": "S0001",
-  "duration__s": 7.333,
-  "video_start__s": 2.03,
-  "video_end__s": 9.333,
-  "goalie_sampling_rate__hz": 60,
-  "puck_sampling_rate__hz": 60,
+  "metadata": {
+    "session_date": "2026-08-06",
+    "participant_id": "P0001",
+    "shot_number": "S0001",
+    "duration__s": 7.333,
+    "goalie_sampling_rate__hz": 60,
+    "puck_sampling_rate__hz": 60
+  },
   "tracking": [
     {
       "frame": 0,
@@ -38,14 +38,12 @@ Each JSON file has the following structure:
 
 | Field | Description |
 | :-- | :-- |
-| `session_date` | Date of the session, `YYYY-MM-DD` |
-| `participant_id` | Goalie ID, consistent across sessions |
-| `shot_number` | Shot ID, in chronological order within the session |
-| `duration__s` | Duration of the shot window, in seconds |
-| `video_start__s` | Start of the shot window, in seconds from the start of the session recording |
-| `video_end__s` | End of the shot window, in seconds from the start of the session recording |
-| `goalie_sampling_rate__hz` | Sampling rate of the goalie pose data, in Hz |
-| `puck_sampling_rate__hz` | Sampling rate of the puck tracking data, in Hz |
+| `metadata.session_date` | Date of the session, `YYYY-MM-DD` |
+| `metadata.participant_id` | Participant ID of the goalie, consistent across sessions |
+| `metadata.shot_number` | Shot ID, in chronological order within the session |
+| `metadata.duration__s` | Duration of the shot, in seconds |
+| `metadata.goalie_sampling_rate__hz` | Sampling rate of the goalie pose data, in Hz |
+| `metadata.puck_sampling_rate__hz` | Sampling rate of the puck tracking data, in Hz |
 | `tracking` | List of frames, in chronological order |
 | `frame` | Frame index within the shot, starting at `0` |
 | `time` | Time since the first frame of the shot, in **milliseconds** |
@@ -55,9 +53,16 @@ Each JSON file has the following structure:
 
 ## Session Information
 
-| Session | Participants | Shots (total) | Sampling Rate | Usage
+| Session | Goalies | Shots (total) | Sampling Rate | Usage
 | :-: | :-: | :-: | :-: | :-:
-| 2026-08-06 | 1 (P0001) | 81 | 60fps | Stathletes Big Data Cup
+| 2026-08-06 | 1 (P0001) | 81 | 60fps | [Stathletes Big Data Cup](https://stathletes.com/big-data-cup/data-documentation)
+
+## Orientation video
+To help orient yourself to the data, the video below shows shot `S0011` (`data/2026-08-06/P0001/HK_GL_P0001_S0011.json`) reconstructed from the JSON file using `animate_shot()` (top left), synchronized with the session's three camera views: overhead (top right), bench wall (bottom left), and stands wall (bottom right). Click the image to open the video.
+
+<p align="center">
+  <a href="./assets/orientation_video.mp4"><img src="./assets/orientation_video_preview.jpg" width=800></a>
+</p>
 
 ## Coordinate system and Units
 
@@ -133,13 +138,13 @@ anim.save("S0001.mp4", writer="ffmpeg", fps=60)
 ```
 
 ### Camera options
-The view can be changed using the `camera`, `buffer`, `elev`, and `azim` arguments:
+The view can be changed using the `track_goalie`, `buffer`, `elev`, and `azim` arguments:
 
 | Argument | Description |
 | :-- | :-- |
-| `camera="goalie"` (default) | Follows the goalie's `MID_HIP`, showing `buffer` feet on each side. Best for looking at goalie movement; the puck is only visible once it is near the goalie. |
-| `camera="shot"` | Fixed view covering the goalie and the full puck path, with `buffer` feet of padding. Best for seeing the whole shot; the goalie appears smaller. |
-| `buffer` | For `camera="goalie"`: half-width of the view window in feet (e.g. `5` for a tight view of the goalie, `12` to see more of the puck approach). For `camera="shot"`: padding around the goalie and puck path in feet. |
+| `track_goalie=True` (default) | Follows the goalie's `MID_HIP`, showing `buffer` feet on each side. Best for looking at goalie movement; the puck is only visible once it is near the goalie. |
+| `track_goalie=False` | Fixed view covering the goalie and the full puck path, with `buffer` feet of padding. Best for seeing the whole shot; the goalie appears smaller. |
+| `buffer` | For `track_goalie=True`: half-width of the view window in feet (e.g. `5` for a tight view of the goalie, `12` to see more of the puck approach). For `track_goalie=False`: padding around the goalie and puck path in feet. |
 | `elev` | Elevation angle of the view, in degrees (`0` = ice level, `90` = straight down). |
 | `azim` | Azimuth angle of the view, in degrees (`180` = from the slot looking toward the net, `270` = side view from the boards). |
 
@@ -149,7 +154,7 @@ Some example views:
 animate_shot(path, elev=30, azim=180)                # default: from the slot, looking toward the net
 animate_shot(path, elev=50, azim=180)                # high view, similar to an overhead camera behind the shooter
 animate_shot(path, elev=15, azim=270)                # side view from the boards
-animate_shot(path, camera="shot", elev=90, azim=180) # top-down view of the full shot
+animate_shot(path, track_goalie=False, elev=90, azim=180) # top-down view of the full shot
 ```
 
 Other options (colors, line widths, puck size, number of puck trail positions, and joint connections) are documented in the `animate_shot()` docstring.

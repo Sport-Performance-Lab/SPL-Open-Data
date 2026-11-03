@@ -1,12 +1,12 @@
 {
-  "session_date": "2026-08-06",
-  "participant_id": "P0001",
-  "shot_number": "S0001",
-  "duration__s": 7.333,
-  "video_start__s": 2.03,
-  "video_end__s": 9.333,
-  "goalie_sampling_rate__hz": 60,
-  "puck_sampling_rate__hz": 60,
+  "metadata": {
+    "session_date": "2026-08-06",
+    "participant_id": "P0001",
+    "shot_number": "S0001",
+    "duration__s": 7.333,
+    "goalie_sampling_rate__hz": 60,
+    "puck_sampling_rate__hz": 60
+  },
   "tracking": [
     {
       "frame": 0,

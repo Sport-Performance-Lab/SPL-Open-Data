@@ -35,7 +35,7 @@ def _to_array(values):
 def animate_shot(
     path_to_json,
     connections=connections,
-    camera="goalie",
+    track_goalie=True,
     buffer=8.0,
     zlim=6.0,
     elev=30.0,
@@ -57,21 +57,21 @@ def animate_shot(
         The path to the JSON file containing the shot data.
     - connections: list of tuples
         A list of tuples, where each tuple contains two strings representing the joints to connect.
-    - camera: str
+    - track_goalie: bool
         How the view is framed:
-        "goalie" = follow the goalie's MID_HIP, showing +/- buffer feet around them each frame.
-                   Best for looking at goalie movement; the puck is only visible once it is near the goalie.
-        "shot"   = fixed view covering the goalie and the full puck path (plus buffer feet of padding).
-                   Best for seeing the whole shot; the goalie appears smaller.
+        True  = follow the goalie's MID_HIP, showing +/- buffer feet around them each frame.
+                Best for looking at goalie movement; the puck is only visible once it is near the goalie.
+        False = fixed view covering the goalie and the full puck path (plus buffer feet of padding).
+                Best for seeing the whole shot; the goalie appears smaller.
         Combine with elev/azim to choose the viewing angle, e.g.
         elev=30, azim=180 (default): from the slot, looking toward the net;
         elev=50, azim=180: high view from the slot, similar to an overhead camera behind the shooter;
         elev=15, azim=270: side view from the boards;
         elev=90, azim=180: top-down view.
     - buffer: float
-        For camera="goalie": half-width (feet) of the view window around the goalie
+        For track_goalie=True: half-width (feet) of the view window around the goalie
         (smaller = tighter on the goalie, e.g. 5; larger = more of the puck approach, e.g. 12).
-        For camera="shot": padding (feet) around the goalie and puck path.
+        For track_goalie=False: padding (feet) around the goalie and puck path.
     - zlim: float
         The limit for the z-axis height (feet).
     - elev: float
@@ -125,8 +125,9 @@ def animate_shot(
     goalie_joint_dict = {joint: _to_array(values) for joint, values in goalie_joint_dict.items()}
     puck_data = _to_array(puck_data)
 
+    metadata = data["metadata"]
     n_frames = len(data["tracking"])
-    sampling_rate = data["goalie_sampling_rate__hz"]
+    sampling_rate = metadata["goalie_sampling_rate__hz"]
     times_s = np.array([frame_data["time"] for frame_data in data["tracking"]]) / 1000
 
     # Animate the data
@@ -138,20 +139,6 @@ def animate_shot(
 
     if show_rink:
         NHLRink(units="ft").draw3d(ax)
-
-    if camera == "shot":
-        all_xy = np.vstack([goalie_joint_dict["MID_HIP"][:, :2], puck_data[:, :2]])
-        all_xy = all_xy[np.isfinite(all_xy).all(axis=1)]
-        xlim = (all_xy[:, 0].min() - buffer, min(all_xy[:, 0].max() + buffer, 100.0))
-        ylim = (all_xy[:, 1].min() - buffer, all_xy[:, 1].max() + buffer)
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-        ax.set_zlim(0, zlim)
-        # Equal scaling in feet so the goalie is not stretched
-        ax.set_box_aspect((xlim[1] - xlim[0], ylim[1] - ylim[0], zlim))
-    else:
-        ax.set_zlim(0, zlim)
-        ax.set_box_aspect((1, 1, zlim / (2 * buffer)))
 
     # Prepare the lines to be updated
     lines = {connection: ax.plot([], [], [], c=goalie_color, lw=goalie_lw, zorder=10)[0] for connection in connections}
@@ -174,11 +161,25 @@ def animate_shot(
 
     def update(frame):
 
-        if camera == "goalie":
+        if track_goalie:  # track the goalie, with a view centered on their MID_HIP joint
             mh = goalie_joint_dict["MID_HIP"][frame]
             if np.all(np.isfinite(mh)):
                 ax.set_xlim([mh[0] - buffer, mh[0] + buffer])
                 ax.set_ylim([mh[1] - buffer, mh[1] + buffer])
+                ax.set_zlim(0, zlim)
+                # Equal scaling in feet so the goalie is not stretched
+                ax.set_box_aspect((2 * buffer, 2 * buffer, zlim))
+
+        else:  # track the puck and goalie together, with a fixed view
+            all_xy = np.vstack([goalie_joint_dict["MID_HIP"][:, :2], puck_data[:, :2]])
+            all_xy = all_xy[np.isfinite(all_xy).all(axis=1)]
+            xlim = (all_xy[:, 0].min() - buffer, min(all_xy[:, 0].max() + buffer, 100.0))
+            ylim = (all_xy[:, 1].min() - buffer, all_xy[:, 1].max() + buffer)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.set_zlim(0, zlim)
+            # Equal scaling in feet so the goalie is not stretched
+            ax.set_box_aspect((xlim[1] - xlim[0], ylim[1] - ylim[0], zlim))
 
         # Update the line data for each connection
         for part1, part2 in connections:
@@ -192,7 +193,7 @@ def animate_shot(
             past = puck_data[frame - k : frame - k + 1] if frame - k >= 0 else np.full((1, 3), np.nan)
             marker.set_data_3d(past[:, 0], past[:, 1], past[:, 2])
 
-        time_text.set_text(f"{data['shot_number']} | t = {times_s[frame]:.2f} s")
+        time_text.set_text(f"{metadata['shot_number']} | t = {times_s[frame]:.2f} s")
 
     plt.close()
 
